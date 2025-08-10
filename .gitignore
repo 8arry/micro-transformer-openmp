@@ -1,0 +1,47 @@
+# Build directories
+build/
+bin/
+obj/
+
+# Executable files
+*.exe
+*.out
+*.app
+
+# Object files
+*.o
+*.obj
+
+# Debug files
+*.pdb
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Editor backup files
+.vscode/
+*.swp
+*.swo
+
+# Test files (temporary)
+test_*.cpp
+test_*.hpp
+*_test.cpp
+*_test.hpp
+
+# Setup and documentation files (temporary)
+setup_*.md
+*_STATUS.md
+*_fix.md
+
+# Windows thumbnail cache
+Thumbs.db
+ehthumbs.db
+
+# macOS
+.DS_Store
+
+# Linux
+*~
