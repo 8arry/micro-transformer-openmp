@@ -74,7 +74,8 @@ namespace MicroTransformer
 
         Matrix result(rows_, other.cols_);
 
-// Optimized matrix multiplication with OpenMP
+        // Simple matrix multiplication - same for both serial and parallel
+        // Parallelization decisions are made at higher level (forward_serial vs forward_parallel)
 #pragma omp parallel for collapse(2) if (rows_ * other.cols_ * cols_ > 1000)
         for (size_t i = 0; i < rows_; ++i)
         {
@@ -87,6 +88,63 @@ namespace MicroTransformer
                 }
                 result(i, j) = sum;
             }
+        }
+
+        return result;
+    }
+
+    Matrix Matrix::multiply_blocked(const Matrix &other) const
+    {
+        if (cols_ != other.rows_)
+        {
+            throw std::invalid_argument("Matrix dimensions don't match for multiplication");
+        }
+
+        Matrix result(rows_, other.cols_);
+
+        // Zero initialize result matrix
+        std::fill(result.data_.begin(), result.data_.end(), 0.0f);
+
+        // Block size for cache optimization (L1 cache friendly)
+        const size_t BLOCK_SIZE = 64;
+
+        // Use blocked matrix multiplication for better cache performance
+        if (rows_ >= BLOCK_SIZE || other.cols_ >= BLOCK_SIZE || cols_ >= BLOCK_SIZE)
+        {
+            // Blocked matrix multiplication with conditional parallelization to avoid nested parallel regions
+#pragma omp parallel for if (!omp_in_parallel()) schedule(dynamic) collapse(2)
+            for (size_t bi = 0; bi < rows_; bi += BLOCK_SIZE)
+            {
+                for (size_t bj = 0; bj < other.cols_; bj += BLOCK_SIZE)
+                {
+                    for (size_t bk = 0; bk < cols_; bk += BLOCK_SIZE)
+                    {
+                        // Calculate actual block boundaries
+                        size_t i_end = std::min(bi + BLOCK_SIZE, rows_);
+                        size_t j_end = std::min(bj + BLOCK_SIZE, other.cols_);
+                        size_t k_end = std::min(bk + BLOCK_SIZE, cols_);
+
+                        // Inner block computation
+                        for (size_t i = bi; i < i_end; ++i)
+                        {
+                            for (size_t j = bj; j < j_end; ++j)
+                            {
+                                float sum = result(i, j);
+                                for (size_t k = bk; k < k_end; ++k)
+                                {
+                                    sum += (*this)(i, k) * other(k, j);
+                                }
+                                result(i, j) = sum;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Fall back to simple multiplication for small matrices
+            return (*this) * other;
         }
 
         return result;

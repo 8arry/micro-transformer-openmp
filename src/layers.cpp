@@ -73,8 +73,8 @@ namespace MicroTransformer
 
     Matrix FeedForwardNetwork::forward_parallel(const Matrix &input)
     {
-        // First linear transformation: input * W1 + b1 (Matrix multiplication is already parallelized)
-        Matrix hidden = input * W1_;
+        // First linear transformation: input * W1 + b1 with blocked multiplication
+        Matrix hidden = input.multiply_blocked(W1_);
 
 // Add bias in parallel
 #pragma omp parallel for collapse(2)
@@ -89,8 +89,8 @@ namespace MicroTransformer
         // Apply ReLU activation
         Matrix activated = relu(hidden, true);
 
-        // Second linear transformation: activated * W2 + b2
-        Matrix output = activated * W2_;
+        // Second linear transformation: activated * W2 + b2 with blocked multiplication
+        Matrix output = activated.multiply_blocked(W2_);
 
 // Add bias in parallel
 #pragma omp parallel for collapse(2)
@@ -190,16 +190,18 @@ namespace MicroTransformer
 #pragma omp parallel for
         for (size_t i = 0; i < input.rows(); ++i)
         {
-            // Compute mean
+            // Compute mean using parallel reduction with SIMD
             float mean = 0.0f;
+#pragma omp simd reduction(+ : mean)
             for (size_t j = 0; j < input.cols(); ++j)
             {
                 mean += input(i, j);
             }
             mean /= static_cast<float>(input.cols());
 
-            // Compute variance
+            // Compute variance using parallel reduction with SIMD
             float variance = 0.0f;
+#pragma omp simd reduction(+ : variance)
             for (size_t j = 0; j < input.cols(); ++j)
             {
                 float diff = input(i, j) - mean;
@@ -207,8 +209,9 @@ namespace MicroTransformer
             }
             variance /= static_cast<float>(input.cols());
 
-            // Normalize and apply learnable parameters
+            // Normalize and apply learnable parameters with SIMD vectorization
             float std_dev = std::sqrt(variance + config_.epsilon);
+#pragma omp simd
             for (size_t j = 0; j < input.cols(); ++j)
             {
                 float normalized = (input(i, j) - mean) / std_dev;

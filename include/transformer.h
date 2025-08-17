@@ -30,6 +30,7 @@ namespace MicroTransformer
 
         // Matrix operations
         Matrix operator*(const Matrix &other) const;
+        Matrix multiply_blocked(const Matrix &other) const; // Blocked matrix multiplication for optimization
         Matrix operator+(const Matrix &other) const;
         Matrix transpose() const;
         void randomize(float min = -1.0f, float max = 1.0f);

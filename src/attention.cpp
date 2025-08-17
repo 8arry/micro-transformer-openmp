@@ -71,10 +71,26 @@ namespace MicroTransformer
 
     Matrix MultiHeadAttention::forward_parallel(const Matrix &input)
     {
-        // Linear transformations to get Q, K, V (already parallelized in Matrix::operator*)
-        Matrix Q = input * W_q_;
-        Matrix K = input * W_k_;
-        Matrix V = input * W_v_;
+        // Linear transformations to get Q, K, V in parallel using sections
+        Matrix Q(input.rows(), W_q_.cols());
+        Matrix K(input.rows(), W_k_.cols());
+        Matrix V(input.rows(), W_v_.cols());
+
+#pragma omp parallel sections
+        {
+#pragma omp section
+            {
+                Q = input.multiply_blocked(W_q_);
+            }
+#pragma omp section
+            {
+                K = input.multiply_blocked(W_k_);
+            }
+#pragma omp section
+            {
+                V = input.multiply_blocked(W_v_);
+            }
+        }
 
         // Split into multiple heads
         std::vector<Matrix> Q_heads(config_.num_heads, Matrix(config_.seq_length, head_dim_));
@@ -97,8 +113,8 @@ namespace MicroTransformer
         // Concatenate heads
         Matrix concat_output = concat_heads(attention_outputs);
 
-        // Final linear transformation
-        return concat_output * W_o_;
+        // Final linear transformation with blocked multiplication
+        return concat_output.multiply_blocked(W_o_);
     }
 
     Matrix MultiHeadAttention::scaled_dot_product_attention(const Matrix &Q, const Matrix &K, const Matrix &V, bool use_parallel)
@@ -158,22 +174,25 @@ namespace MicroTransformer
 #pragma omp parallel for
             for (size_t i = 0; i < input.rows(); ++i)
             {
-                // Find max for numerical stability
+                // Find max for numerical stability using parallel reduction
                 float max_val = input(i, 0);
+#pragma omp simd reduction(max : max_val)
                 for (size_t j = 1; j < input.cols(); ++j)
                 {
                     max_val = std::max(max_val, input(i, j));
                 }
 
-                // Compute exponentials and sum
+                // Compute exponentials and sum using parallel reduction
                 float sum = 0.0f;
+#pragma omp simd reduction(+ : sum)
                 for (size_t j = 0; j < input.cols(); ++j)
                 {
                     result(i, j) = std::exp(input(i, j) - max_val);
                     sum += result(i, j);
                 }
 
-                // Normalize
+// Normalize with SIMD vectorization
+#pragma omp simd
                 for (size_t j = 0; j < input.cols(); ++j)
                 {
                     result(i, j) /= sum;
@@ -212,6 +231,9 @@ namespace MicroTransformer
 
     void MultiHeadAttention::split_heads(const Matrix &input, std::vector<Matrix> &heads) const
     {
+// Parallelize over both attention heads and sequence positions using collapse(2)
+// This provides better parallel efficiency for large dimensions
+#pragma omp parallel for collapse(2) if (!omp_in_parallel())
         for (size_t h = 0; h < config_.num_heads; ++h)
         {
             for (size_t i = 0; i < config_.seq_length; ++i)
@@ -228,6 +250,9 @@ namespace MicroTransformer
     {
         Matrix result(config_.seq_length, config_.embed_dim);
 
+// Parallelize over both attention heads and sequence positions using collapse(2)
+// This provides better parallel efficiency for large dimensions
+#pragma omp parallel for collapse(2) if (!omp_in_parallel())
         for (size_t h = 0; h < config_.num_heads; ++h)
         {
             for (size_t i = 0; i < config_.seq_length; ++i)
