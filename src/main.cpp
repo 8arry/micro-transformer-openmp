@@ -90,7 +90,7 @@ void run_comprehensive_benchmark()
     base_config.num_layers = 3;
 
     // Test different thread counts
-    std::vector<size_t> thread_counts = {1, 2, 4, 8};
+    std::vector<size_t> thread_counts = {1, 2, 4, 8, 16};
 
     // Test different sequence lengths
     std::vector<size_t> sequence_lengths = {64, 128, 256};
@@ -177,6 +177,9 @@ void run_detailed_component_test()
 
 int main()
 {
+    // Configure OpenMP to avoid nested parallelism issues
+    omp_set_max_active_levels(1);
+
     print_header();
 
     try
