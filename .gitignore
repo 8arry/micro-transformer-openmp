@@ -2,7 +2,8 @@
 build/
 bin/
 obj/
-
+pics/
+tests/
 # Executable files
 *.exe
 *.out
