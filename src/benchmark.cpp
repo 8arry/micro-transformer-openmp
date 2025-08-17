@@ -86,10 +86,11 @@ namespace MicroTransformer
             Matrix input = Utils::generate_random_input(seq_len, config.embed_dim);
 
             // Test serial implementation first
+            BenchmarkResult serial_result;
             {
                 omp_set_num_threads(1);
                 TransformerEncoder encoder(config);
-                BenchmarkResult serial_result = measure_execution(encoder, input, false, num_runs);
+                serial_result = measure_execution(encoder, input, false, num_runs);
                 results.push_back(serial_result);
 
                 std::cout << "  Serial: " << std::fixed << std::setprecision(3)
@@ -107,9 +108,8 @@ namespace MicroTransformer
                 BenchmarkResult parallel_result = measure_execution(encoder, input, true, num_runs);
                 results.push_back(parallel_result);
 
-                // Calculate speedup compared to serial
-                double speedup = results[results.size() - thread_counts.size()].execution_time_ms /
-                                 parallel_result.execution_time_ms;
+                // Calculate speedup compared to serial result for this sequence length
+                double speedup = serial_result.execution_time_ms / parallel_result.execution_time_ms;
 
                 std::cout << "  " << thread_count << " threads: "
                           << std::fixed << std::setprecision(3) << parallel_result.execution_time_ms
