@@ -59,7 +59,7 @@ file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 enable_testing()
 
 # Basic functionality test
-add_custom_target(test
+add_custom_target(run_tests
     COMMAND $<TARGET_FILE:${PROJECT_NAME}>
     DEPENDS ${PROJECT_NAME}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
